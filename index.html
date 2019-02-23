@@ -8,6 +8,8 @@
     <script type="text/javascript" src="shaderManager.js"></script>
     <script type="text/javascript" src="utils.js"></script>
     <script type="text/javascript" src="models.js"></script>
+
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js" ></script>
     
     <script id="vs" type="x-shader/x-vertex">
         #version 300 es
@@ -94,6 +96,17 @@
     //Init function
     function init( )
     {
+        var bunnyObj;
+        $.ajax({
+            url: "bunny.json",
+            dataType: "json",
+            success: function(response) {
+                bunnyObj = response;
+
+            },
+            async: false
+        });
+
         canvas = document.getElementById( "glCanvas" ); 
         canvas.width    = window.innerWidth;
         canvas.height   = window.innerHeight;    
@@ -134,8 +147,8 @@
         gl.enableVertexAttribArray(positionLoc);
 
         //Buffer creation
-        meshVertexs = cubeVertices; //triVertices;
-        meshIndexs = cubeFaces; //triFaces;
+        meshVertexs = bunnyObj.vertexs; //triVertices;
+        meshIndexs = bunnyObj.faces; //triFaces;
         vertexBuff= gl.createBuffer ();
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuff);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(meshVertexs),gl.STATIC_DRAW);
