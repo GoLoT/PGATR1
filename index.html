@@ -14,18 +14,24 @@
     <script id="vs" type="x-shader/x-vertex">
         #version 300 es
         in vec3 position;
-        in vec3 color; 
+        in vec3 color;
+        in vec3 normal;
 
         uniform mat4 projection;
         uniform mat4 view;
         uniform mat4 model;
 
         out vec3 vColor;
+        out vec3 vNormal;
 
         void main(void) 
-        { 
-            gl_Position = projection*view*model*vec4(position, 1.);
+        {
+            mat4 modelView = view * model;
+            mat4 normalMat = inverse(transpose(modelView));
+            gl_Position = projection * modelView *vec4(position, 1.);
+
             vColor = color;
+            vNormal = (normalMat * vec4(normal,0.)).xyz;
         }
     </script>
 
@@ -34,12 +40,14 @@
         precision mediump float;
 
         in vec3 vColor;
+        in vec3 vNormal;
 
         out vec4 outColor;
 
         void main(void) 
         {
-            outColor = vec4(vColor, 1.);
+            //outColor = vec4(vColor, 1.);
+            outColor = vec4(vNormal,1.);
         }
     </script>
 
@@ -53,15 +61,17 @@
 
     var shaderProgram;
     var projectionLoc, viewLoc, modelLoc;
-    var colorLoc, positionLoc;
+    var colorLoc, positionLoc,normalLoc;
 
     var perspMat, viewMat, modelMat;
 
     var meshVertexs;
     var meshIndexs;
+    var meshNormals;
 
     var vertexBuff;
     var indexBuff;
+    var normalBuff;
 
     var drag    = false;
     var prevX=0, prevY=0, dX=0, dY=0, rotX=0, rotY=0;
@@ -98,7 +108,7 @@
     {
         var bunnyObj;
         $.ajax({
-            url: "bunny.json",
+            url: "cube.json",
             dataType: "json",
             success: function(response) {
                 bunnyObj = response;
@@ -143,15 +153,22 @@
         //Connect Buffers
         colorLoc      = gl.getAttribLocation(shaderProgram.program, "color");
         positionLoc   = gl.getAttribLocation(shaderProgram.program, "position");
+        normalLoc     = gl.getAttribLocation(shaderProgram.program, "normal");
         gl.enableVertexAttribArray(colorLoc);
         gl.enableVertexAttribArray(positionLoc);
+        gl.enableVertexAttribArray(normalLoc);
 
         //Buffer creation
         meshVertexs = bunnyObj.vertexs; //triVertices;
         meshIndexs = bunnyObj.faces; //triFaces;
+        meshNormals = bunnyObj.normals;
         vertexBuff= gl.createBuffer ();
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuff);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(meshVertexs),gl.STATIC_DRAW);
+
+        normalBuff = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, normalBuff);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(meshNormals),gl.STATIC_DRAW);
 
         indexBuff= gl.createBuffer ();
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuff);
@@ -196,6 +213,7 @@
         var meshElementSize = 4*(3+3); //4 bytes * (pos + color)
         var meshColorOffset = 4*3; //4 bytes * (pos)
         gl.vertexAttribPointer(positionLoc, 3, gl.FLOAT, false, meshElementSize,   0 ) ;
+        gl.vertexAttribPointer(normalLoc,3,gl.FLOAT,false,meshElementSize,0);
         gl.vertexAttribPointer(colorLoc, 3, gl.FLOAT, false,  meshElementSize, meshColorOffset ) ;
 
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuff);
