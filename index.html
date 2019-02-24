@@ -29,12 +29,12 @@
         void main(void) 
         {
             mat4 modelView = view * model;
-            mat4 normalMat = transpose(inverse(modelView));
-            vPos = (modelView * vec4(position,1.)).xyz;
-            gl_Position = projection *vec4(vPos, 1.);
+            vPos = (model * vec4(position,1.)).xyz;
+            gl_Position = projection * modelView*vec4(position, 1.);
 
             vColor = color;
-            vNormal = normalize((normalMat * vec4(normal,0.)).xyz);
+            vNormal = mat3(transpose(inverse(model))) * normal;
+            //vNormal = normal;
         }
     </script>
 
@@ -45,6 +45,8 @@
         in vec3 vColor;
         in vec3 vNormal;
 		in vec3 vPos;
+
+		uniform vec3 camPos;
 
          //Obj
         vec3 Ka;
@@ -82,13 +84,13 @@
         //Parametros de la luz 1 - Point
         vec3 Il1 = vec3(0.6);
         vec3 Ia1 = vec3(0.2);
-        vec3 pl1 = vec3(0,0,2);
-        float att1 = 0.2;
+        vec3 pl1 = vec3(0,0,3);
+        float att1 = 0.0;
 
 		//light parameters 3 - Directional
-		vec3 dir = vec3(0.0, 1.0, 1.0);
-		vec3 Il3 = vec3(0.8);
-		vec3 Ia3 = vec3(0.0);
+		vec3 dir = vec3(0.0, 0.0, 1.0);
+		vec3 Il3 = vec3(0.6);
+		vec3 Ia3 = vec3(0.2);
 
         out vec4 outColor;
 
@@ -96,7 +98,11 @@
             vec3 c = vec3(0.0);
 	        c+= Ke;
 
-	        vec3 V = normalize(-pos);
+	       vec3 V = normalize(pos - camPos);
+
+	       if (dot(V,normalVector) < 0.4f && dot(V,normalVector) > -0.4f ) {
+	            return vec3(0.0f);
+	        }
 
 	        for (int i=0; i< numLights; i++ ) {
 		        Light light = lights[i];
@@ -116,7 +122,8 @@
 
 			        //Especular
 			        vec3 H = normalize(V+L);
-			        vec3 Ispec = Ks * light.intensities * pow( max( dot(normalVector,H), 0.0), brightness);
+			        vec3 Ispec = Ks * light.intensities * pow( max( dot(H,normalVector), 0.0), brightness);
+
 			        Ispec = clamp(Ispec,0.0,1.0);
 			        resi += (Ispec + Idiff);
 		        }
@@ -137,7 +144,11 @@
 	        vec3 c = vec3(0.0);
 	        c+= Ke;
 
-	        vec3 V = normalize(-pos);
+	        vec3 V = normalize(pos - camPos);
+
+	        if (dot(V,normalVector) < 0.4f && dot(V,normalVector) > -0.4f ) {
+	            return vec3(0.0f);
+	        }
 
 	        for (int i=0; i< numLights; i++ ) {
 		        Light light = lights[i];
@@ -156,8 +167,8 @@
 			        Idiff = clamp(Idiff,0.0,1.0);
 
 			        //Especular
-			        vec3 R = normalize(-reflect(L,normalVector));
-			        vec3 Ispec = Ks * light.intensities * pow( max( dot(R,V), 0.0), brightness);
+			        vec3 R = reflect(-L,normalVector);
+			        vec3 Ispec = Ks * light.intensities * pow( max( dot(V,R), 0.0), brightness);
 			        Ispec = clamp(Ispec,0.0,1.0);
 			        resi += (Ispec + Idiff);
 		        }
@@ -170,7 +181,7 @@
 	        }
 
 	        float f = exp(-pow(df*pos.z,2.0f));
-	        c = f*c + (1.0f-f) * cfog;
+	        //c = f*c + (1.0f-f) * cfog;
 	        return  c;
 	     }
 
@@ -184,11 +195,14 @@
 			pos = vPos;
 			normalVector = normalize(vNormal);
 
+            //pl1 = (view2 * vec4(pl1,1.0)).xyz;
+            //dir = (view2 * vec4(dir,0.0)).xyz;
+
 			Light lights[MAX_LIGHTS];
 			numLights = 1;
 			Light l1 = Light(vec4(pl1,1.0), Il1,c1,c2,c3,Ia1,180.0f,vec3(1));
             Light l3 = Light(vec4(dir,0.0f), Il3,0.0f,0.0f,0.0f,Ia3,180.0f,vec3(1));
-            lights[0] = l3;
+            lights[0] = l1;
             outColor = vec4(shade(lights), 1.);
         }
     </script>
@@ -202,7 +216,7 @@
     var canvas;
 
     var shaderProgram;
-    var projectionLoc, viewLoc, modelLoc;
+    var projectionLoc, viewLoc, modelLoc, camPosLoc;
     var colorLoc, positionLoc,normalLoc;
 
     var perspMat, viewMat, modelMat;
@@ -246,11 +260,11 @@
     };
 
     //Init function
-    function init( )
+    function init()
     {
         var bunnyObj;
         $.ajax({
-            url: "teapot.json",
+            url: "bunny.json",
             dataType: "json",
             success: function(response) {
                 bunnyObj = response;
@@ -291,6 +305,7 @@
         projLoc = gl.getUniformLocation(shaderProgram.program, "projection");
         viewLoc = gl.getUniformLocation(shaderProgram.program, "view");
         modelLoc = gl.getUniformLocation(shaderProgram.program, "model");
+        camPosLoc = gl.getUniformLocation(shaderProgram.program, "camPos");
     
         //Connect Buffers
         colorLoc      = gl.getAttribLocation(shaderProgram.program, "color");
@@ -301,9 +316,9 @@
         gl.enableVertexAttribArray(normalLoc);
 
         //Buffer creation
-        meshVertexs = cubeVertexPos//bunnyObj.vertexs; //triVertices;
-        meshIndexs = cubeTriangle//bunnyObj.faces; //triFaces;
-        meshNormals = cubeVertexNormal//bunnyObj.normals;
+        meshVertexs = bunnyObj.vertexs; //triVertices;
+        meshIndexs =  bunnyObj.faces; //triFaces;
+        meshNormals = bunnyObj.normals;
         vertexBuff= gl.createBuffer ();
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuff);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(meshVertexs),gl.STATIC_DRAW);
@@ -325,6 +340,8 @@
 
         gl.uniformMatrix4fv(projLoc, false, perspMat);
         gl.uniformMatrix4fv(viewLoc, false, viewMat);
+        gl.uniform3fv(camPosLoc, glMatrix.vec3.fromValues(0, 0, -5));
+
 
         //Prepare render
         gl.enable(gl.DEPTH_TEST);
