@@ -146,7 +146,7 @@
 
 	        vec3 V = normalize(pos - camPos);
 
-	        if (dot(V,normalVector) < 0.6f && dot(V,normalVector) > -0.6f ) {
+	        if (dot(V,normalVector) < 0.6f && dot(V,normalVector) > -0.1f ) {
 	            return vec3(0.0f);
 	        }
 
@@ -265,31 +265,43 @@
    function eventHandler(e) {
        var keyCode = e.key;
 
-       var forward = [viewMat[0][2], viewMat[1][2], viewMat[2][2]];
+       var forward = [viewMat[8], viewMat[9], viewMat[10]];
        if (forward[2] !== 0 && forward[0] !== 0) {
-           forward.y = 0;
+           forward[1] = 0;
            glMatrix.vec3.normalize(forward,forward);
        }
-       var right = [viewMat[0][0], viewMat[1][0], viewMat[2][0]];
+       var right = [viewMat[0], viewMat[1], viewMat[2]];
        var up = [0.0,1.0,0.0];
        switch (keyCode) {
            case 'w':
-               camaraPos[2] += forward/10;
+               camaraPos[0] += forward[0];
+               camaraPos[1] += forward[1];
+               camaraPos[2] += forward[2];
                 break;
            case 's' :
-               camaraPos[2] -= forward;
+               camaraPos[0] -= forward[0];
+               camaraPos[1] -= forward[1];
+               camaraPos[2] -= forward[2];
                break;
            case 'a':
-               camaraPos[0] -= right;
+               camaraPos[0] -= right[0];
+               camaraPos[1] -= right[1];
+               camaraPos[2] -= right[2];
                break;
            case 'd':
-               camaraPos[0] += right;
+               camaraPos[0] += right[0];
+               camaraPos[1] += right[1];
+               camaraPos[2] += right[2];
                break;
            case 'r':
-               camaraPos[1] += up;
+               camaraPos[0] += up[0];
+               camaraPos[1] += up[1];
+               camaraPos[2] += up[2];
                break;
            case 'f':
-               camaraPos[1] -= up;
+               camaraPos[0] -= up[0];
+               camaraPos[1] -= up[1];
+               camaraPos[2] -= up[2];
 
        }
    }
@@ -397,6 +409,7 @@
         glMatrix.mat4.rotate(viewMat,viewMat,rotY,glMatrix.vec3.fromValues(1,0,0));
         glMatrix.mat4.rotate(viewMat,viewMat,rotX,glMatrix.vec3.fromValues(0,1,0));
         glMatrix.mat4.translate(viewMat,viewMat, glMatrix.vec3.fromValues(camaraPos[0], camaraPos[1], camaraPos[2]));
+
 
 
 
