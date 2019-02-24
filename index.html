@@ -39,7 +39,7 @@
     </script>
 
     <script id="fs" type="x-shader/x-fragment">
- #version 300 es
+        #version 300 es
         precision mediump float;
 
         in vec3 vColor;
@@ -79,12 +79,59 @@
            vec3 coneDir;
         };
 
+        //Parametros de la luz 1 - Point
+        vec3 Il1 = vec3(0.6);
+        vec3 Ia1 = vec3(0.2);
+        vec3 pl1 = vec3(0,0,2);
+        float att1 = 0.2;
+
 		//light parameters 3 - Directional
 		vec3 dir = vec3(0.0, 1.0, 1.0);
 		vec3 Il3 = vec3(0.8);
-		vec3 Ia3 = vec3(0.2);
+		vec3 Ia3 = vec3(0.0);
 
         out vec4 outColor;
+
+        vec3 shade2(Light[MAX_LIGHTS] lights) {
+            vec3 c = vec3(0.0);
+	        c+= Ke;
+
+	        vec3 V = normalize(-pos);
+
+	        for (int i=0; i< numLights; i++ ) {
+		        Light light = lights[i];
+		        //Amibent
+		        vec3 Iamb = Ka * light.Ia;
+		        vec3 resi = Iamb;
+
+
+		        vec3 L = normalize(light.position.xyz - pos * light.position.w); //point or directional
+		        vec3 D = normalize(light.coneDir);
+		        float cosLD = dot(-L,D);
+
+		        if(cosLD >= cos(radians(light.coneAngle))) { // No se ilumninan fragmentos innecesarios
+			        //Diff
+			        vec3 Idiff = Kd * light.intensities * max(dot(normalVector,L),0.0);
+			        Idiff = clamp(Idiff,0.0,1.0);
+
+			        //Especular
+			        vec3 H = normalize(V+L);
+			        vec3 Ispec = Ks * light.intensities * pow( max( dot(normalVector,H), 0.0), brightness);
+			        Ispec = clamp(Ispec,0.0,1.0);
+			        resi += (Ispec + Idiff);
+		        }
+
+		        if ( light.position.w == 1.0) {
+			        float d = length(light.position.xyz - pos);
+			        resi /= light.constAtt + ( light.linearAtt * d) +( light.cuadraticAtt * pow(d,2.0f));
+		        }
+		        c += resi;
+	        }
+
+	        float f = exp(-pow(df*pos.z,2.0f));
+	        c = f*c + (1.0f-f) * cfog;
+	        return  c;
+        }
 
         vec3 shade(Light[MAX_LIGHTS] lights) {
 	        vec3 c = vec3(0.0);
@@ -139,6 +186,7 @@
 
 			Light lights[MAX_LIGHTS];
 			numLights = 1;
+			Light l1 = Light(vec4(pl1,1.0), Il1,c1,c2,c3,Ia1,180.0f,vec3(1));
             Light l3 = Light(vec4(dir,0.0f), Il3,0.0f,0.0f,0.0f,Ia3,180.0f,vec3(1));
             lights[0] = l3;
             outColor = vec4(shade(lights), 1.);
@@ -202,7 +250,7 @@
     {
         var bunnyObj;
         $.ajax({
-            url: "bunny.json",
+            url: "teapot.json",
             dataType: "json",
             success: function(response) {
                 bunnyObj = response;
@@ -253,9 +301,9 @@
         gl.enableVertexAttribArray(normalLoc);
 
         //Buffer creation
-        meshVertexs = cubeVertexPos;//bunnyObj.vertexs; //triVertices;
-        meshIndexs = cubeTriangle;//bunnyObj.faces; //triFaces;
-        meshNormals = cubeVertexNormal;//bunnyObj.normals;
+        meshVertexs = cubeVertexPos//bunnyObj.vertexs; //triVertices;
+        meshIndexs = cubeTriangle//bunnyObj.faces; //triFaces;
+        meshNormals = cubeVertexNormal//bunnyObj.normals;
         vertexBuff= gl.createBuffer ();
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuff);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(meshVertexs),gl.STATIC_DRAW);
