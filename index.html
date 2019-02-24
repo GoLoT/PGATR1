@@ -146,7 +146,7 @@
 
 	        vec3 V = normalize(pos - camPos);
 
-	        if (dot(V,normalVector) < 0.4f && dot(V,normalVector) > -0.4f ) {
+	        if (dot(V,normalVector) < 0.6f && dot(V,normalVector) > -0.6f ) {
 	            return vec3(0.0f);
 	        }
 
@@ -167,7 +167,7 @@
 			        Idiff = clamp(Idiff,0.0,1.0);
 
 			        //Especular
-			        vec3 R = reflect(-L,normalVector);
+			        vec3 R = -reflect(L,normalVector);
 			        vec3 Ispec = Ks * light.intensities * pow( max( dot(V,R), 0.0), brightness);
 			        Ispec = clamp(Ispec,0.0,1.0);
 			        resi += (Ispec + Idiff);
@@ -181,7 +181,7 @@
 	        }
 
 	        float f = exp(-pow(df*pos.z,2.0f));
-	        //c = f*c + (1.0f-f) * cfog;
+	        c = f*c + (1.0f-f) * cfog;
 	        return  c;
 	     }
 
@@ -189,7 +189,7 @@
         {
             Ka = vColor;
             Kd = Ka;
-            Ks = vec3(0.2);
+            Ks = vec3(1.0);
             Ke = vec3(0.0);
             brightness = 200.0f;
 			pos = vPos;
@@ -202,7 +202,7 @@
 			numLights = 1;
 			Light l1 = Light(vec4(pl1,1.0), Il1,c1,c2,c3,Ia1,180.0f,vec3(1));
             Light l3 = Light(vec4(dir,0.0f), Il3,0.0f,0.0f,0.0f,Ia3,180.0f,vec3(1));
-            lights[0] = l1;
+            lights[0] = l3;
             outColor = vec4(shade(lights), 1.);
         }
     </script>
@@ -228,6 +228,9 @@
     var vertexBuff;
     var indexBuff;
     var normalBuff;
+
+    var camaraPos =[0.0,0.0,-5.0];
+
 
     var drag    = false;
     var prevX=0, prevY=0, dX=0, dY=0, rotX=0, rotY=0;
@@ -259,12 +262,44 @@
         }
     };
 
+   function eventHandler(e) {
+       var keyCode = e.key;
+
+       var forward = [viewMat[0][2], viewMat[1][2], viewMat[2][2]];
+       if (forward[2] !== 0 && forward[0] !== 0) {
+           forward.y = 0;
+           glMatrix.vec3.normalize(forward,forward);
+       }
+       var right = [viewMat[0][0], viewMat[1][0], viewMat[2][0]];
+       var up = [0.0,1.0,0.0];
+       switch (keyCode) {
+           case 'w':
+               camaraPos[2] += forward/10;
+                break;
+           case 's' :
+               camaraPos[2] -= forward;
+               break;
+           case 'a':
+               camaraPos[0] -= right;
+               break;
+           case 'd':
+               camaraPos[0] += right;
+               break;
+           case 'r':
+               camaraPos[1] += up;
+               break;
+           case 'f':
+               camaraPos[1] -= up;
+
+       }
+   }
+
     //Init function
     function init()
     {
         var bunnyObj;
         $.ajax({
-            url: "bunny.json",
+            url: "sphere.json",
             dataType: "json",
             success: function(response) {
                 bunnyObj = response;
@@ -292,6 +327,7 @@
         canvas.addEventListener( "mouseup", mouseUp, false );
         canvas.addEventListener( "mouseout", mouseUp, false );
         canvas.addEventListener( "mousemove", mouseMove, false );
+        window.addEventListener("keypress", eventHandler, false);
 
         //Shader inicialization
         shaderProgram = new ShaderManager( );
@@ -317,7 +353,7 @@
 
         //Buffer creation
         meshVertexs = bunnyObj.vertexs; //triVertices;
-        meshIndexs =  bunnyObj.faces; //triFaces;
+        meshIndexs = bunnyObj.faces; //triFaces;
         meshNormals = bunnyObj.normals;
         vertexBuff= gl.createBuffer ();
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuff);
@@ -336,11 +372,11 @@
         glMatrix.mat4.perspective(perspMat, 45, canvas.width/canvas.height, 1, 10);
         modelMat = glMatrix.mat4.create();
         viewMat = glMatrix.mat4.create();
-        glMatrix.mat4.fromTranslation(viewMat, glMatrix.vec3.fromValues(0, 0, -5));
+        glMatrix.mat4.fromTranslation(viewMat, glMatrix.vec3.fromValues(camaraPos[0], camaraPos[1], camaraPos[2]));
 
         gl.uniformMatrix4fv(projLoc, false, perspMat);
         gl.uniformMatrix4fv(viewLoc, false, viewMat);
-        gl.uniform3fv(camPosLoc, glMatrix.vec3.fromValues(0, 0, -5));
+        gl.uniform3fv(camPosLoc, glMatrix.vec3.fromValues(camaraPos[0], camaraPos[1], camaraPos[2]));
 
 
         //Prepare render
@@ -356,15 +392,25 @@
         if (!drag) dX=dY=0;
         
         //Matrix updates
-        glMatrix.mat4.identity(modelMat);
-        glMatrix.mat4.fromYRotation(modelMat, rotX);
-        glMatrix.mat4.rotate(modelMat, modelMat, rotY, glMatrix.vec3.fromValues(1, 0, 0));
+
+        glMatrix.mat4.identity(viewMat);
+        glMatrix.mat4.rotate(viewMat,viewMat,rotY,glMatrix.vec3.fromValues(1,0,0));
+        glMatrix.mat4.rotate(viewMat,viewMat,rotX,glMatrix.vec3.fromValues(0,1,0));
+        glMatrix.mat4.translate(viewMat,viewMat, glMatrix.vec3.fromValues(camaraPos[0], camaraPos[1], camaraPos[2]));
+
+
+
+
+        //glMatrix.mat4.fromYRotation(modelMat, rotX);
+       // glMatrix.mat4.rotate(modelMat, modelMat, rotY, glMatrix.vec3.fromValues(1, 0, 0));
   
         //Rendering
         gl.viewport(0.0, 0.0, canvas.width, canvas.height);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
+        gl.uniformMatrix4fv(viewLoc, false, viewMat);
         gl.uniformMatrix4fv(modelLoc, false, modelMat);
+        gl.uniform3fv(camPosLoc,glMatrix.vec3.fromValues(camaraPos[0],camaraPos[1],camaraPos[2]));
 
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuff);
 
