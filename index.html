@@ -102,7 +102,7 @@
 
 	       vec3 V = normalize(pos - camPos);
 
-	       if (dot(V,normalVector) < 0.4f && dot(V,normalVector) > -0.4f ) {
+	       if (dot(V,normalVector) < outlineWidth && dot(V,normalVector) > -0.4f ) {
 	            return vec3(0.0f);
 	        }
 
@@ -361,7 +361,7 @@
         viewLoc = gl.getUniformLocation(shaderProgram.program, "view");
         modelLoc = gl.getUniformLocation(shaderProgram.program, "model");
         camPosLoc = gl.getUniformLocation(shaderProgram.program, "camPos");
-        outlineWidthLoc = gl.getUniformLocation(shaderProgram.program, "outlineWidthPos");
+        outlineWidthLoc = gl.getUniformLocation(shaderProgram.program, "outlineWidth");
     
         //Connect Buffers
         colorLoc      = gl.getAttribLocation(shaderProgram.program, "color");
