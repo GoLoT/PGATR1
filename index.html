@@ -277,7 +277,7 @@
            forward[1] = 0;
            glMatrix.vec3.normalize(forward,forward);
        }
-       var right = [viewMat[0], viewMat[4], viewMat[7]];
+       var right = [viewMat[0], viewMat[4], viewMat[8]];
        var up = [0.0,1.0,0.0];
        switch (keyCode) {
            case 'w':
@@ -291,14 +291,14 @@
                camaraPos[2] -= forward[2];
                break;
            case 'a':
-               camaraPos[0] -= right[0];
-               camaraPos[1] -= right[1];
-               camaraPos[2] -= right[2];
-               break;
-           case 'd':
                camaraPos[0] += right[0];
                camaraPos[1] += right[1];
                camaraPos[2] += right[2];
+               break;
+           case 'd':
+               camaraPos[0] -= right[0];
+               camaraPos[1] -= right[1];
+               camaraPos[2] -= right[2];
                break;
            case 'r':
                camaraPos[0] += up[0];
