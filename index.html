@@ -1,6 +1,14 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+    <!-- TODO:
+                - Mirar normales
+                - Ajustar camara con DT
+                - Carga asincrona de modelos (Con interfaz)
+                - Deferred
+                - Carga de luces desde App
+                - modificar parametros de una luz.
+    -->
     <title> Basic WebGL2 Scene</title>
 
     <script type="text/javascript" src="gl-matrix-min.js"></script>
@@ -63,6 +71,8 @@
 		vec3 cfog = vec3(1.0);
 		float df = 0.03;
 
+		uniform int nStrips;
+
 
 		// Luces
 
@@ -86,15 +96,26 @@
         //Parametros de la luz 1 - Point
         vec3 Il1 = vec3(0.6);
         vec3 Ia1 = vec3(0.2);
-        vec3 pl1 = vec3(0,0,3);
+        vec3 pl1 = vec3(2,2,2);
         float att1 = 0.0;
 
 		//light parameters 3 - Directional
-		vec3 dir = vec3(0.0, 0.0, 1.0);
+		vec3 dir = vec3(0.0, -1.0, 1.0);
 		vec3 Il3 = vec3(0.6);
 		vec3 Ia3 = vec3(0.2);
 
         out vec4 outColor;
+
+        float getStripColorDiffuse(float c) {
+	        return ceil(c * float(nStrips)) / float(nStrips);
+	     }
+	     float getStripColorSpec(float c) {
+	        if (c > 0.1) {
+	            float tmpC  = ceil(c * float(max(nStrips/10,3))) / float(max(nStrips/10, 3));
+                return tmpC;
+            }
+            return 0.0;
+	     }
 
         vec3 shade2(Light[MAX_LIGHTS] lights) {
             vec3 c = vec3(0.0);
@@ -121,13 +142,20 @@
 			        //Diff
 			        vec3 Idiff = Kd * light.intensities * max(dot(normalVector,L),0.0);
 			        Idiff = clamp(Idiff,0.0,1.0);
+			        resi += Idiff;
+			        //resi.x = getStripColorDiffuse(resi.x);
+			        //resi.y = getStripColorDiffuse(resi.y);
+			        //resi.z = getStripColorDiffuse(resi.z);
 
 			        //Especular
 			        vec3 H = normalize(V+L);
 			        vec3 Ispec = Ks * light.intensities * pow( max( dot(H,normalVector), 0.0), brightness);
+			        //Ispec.x = getStripColorSpec(Ispec.x);
+			        //Ispec.y = getStripColorSpec(Ispec.y);
+			        //Ispec.z = getStripColorSpec(Ispec.z);
 
 			        Ispec = clamp(Ispec,0.0,1.0);
-			        resi += (Ispec + Idiff);
+			        resi += Ispec;
 		        }
 
 		        if ( light.position.w == 1.0) {
@@ -167,12 +195,19 @@
 			        //Diff
 			        vec3 Idiff = Kd * light.intensities * max(dot(normalVector,L),0.0);
 			        Idiff = clamp(Idiff,0.0,1.0);
+			        resi += Idiff;
+			        resi.x = getStripColorDiffuse(resi.x);
+			        resi.y = getStripColorDiffuse(resi.y);
+			        resi.z = getStripColorDiffuse(resi.z);
 
 			        //Especular
 			        vec3 R = -reflect(L,normalVector);
 			        vec3 Ispec = Ks * light.intensities * pow( max( dot(V,R), 0.0), brightness);
 			        Ispec = clamp(Ispec,0.0,1.0);
-			        resi += (Ispec + Idiff);
+			        Ispec.x = getStripColorSpec(Ispec.x);
+			        Ispec.y = getStripColorSpec(Ispec.y);
+			        Ispec.z = getStripColorSpec(Ispec.z);
+			        resi += Ispec;
 		        }
 
 		        if ( light.position.w == 1.0) {
@@ -184,6 +219,7 @@
 
 	        float f = exp(-pow(df*pos.z,2.0f));
 	        c = f*c + (1.0f-f) * cfog;
+
 	        return  c;
 	     }
 
@@ -193,7 +229,7 @@
             Kd = Ka;
             Ks = vec3(1.0);
             Ke = vec3(0.0);
-            brightness = 200.0f;
+            brightness = 32.0f;
 			pos = vPos;
 			normalVector = normalize(vNormal);
 
@@ -201,11 +237,16 @@
             //dir = (view2 * vec4(dir,0.0)).xyz;
 
 			Light lights[MAX_LIGHTS];
-			numLights = 1;
+			numLights = 2;
 			Light l1 = Light(vec4(pl1,1.0), Il1,c1,c2,c3,Ia1,180.0f,vec3(1));
             Light l3 = Light(vec4(dir,0.0f), Il3,0.0f,0.0f,0.0f,Ia3,180.0f,vec3(1));
             lights[0] = l3;
-            outColor = vec4(shade(lights), 1.);
+            lights[1] = l1;
+            vec3 c = shade2(lights);
+            c.x = getStripColorDiffuse(c.x);
+            c.y = getStripColorDiffuse(c.y);
+            c.z = getStripColorDiffuse(c.z);
+            outColor = vec4(c, 1.);
         }
     </script>
 
@@ -216,6 +257,7 @@
 
     var State = function() {
         this.outlineWidth = 0.6;
+        this.nStrips = 4;
     };
     var state = new State();
 
@@ -223,7 +265,7 @@
     var canvas;
 
     var shaderProgram;
-    var projectionLoc, viewLoc, modelLoc, camPosLoc, outlineWidthLoc;
+    var projectionLoc, viewLoc, modelLoc, camPosLoc, outlineWidthLoc, nStripsLoc;
     var colorLoc, positionLoc,normalLoc;
 
     var perspMat, viewMat, modelMat;
@@ -362,6 +404,7 @@
         modelLoc = gl.getUniformLocation(shaderProgram.program, "model");
         camPosLoc = gl.getUniformLocation(shaderProgram.program, "camPos");
         outlineWidthLoc = gl.getUniformLocation(shaderProgram.program, "outlineWidth");
+        nStripsLoc = gl.getUniformLocation(shaderProgram.program,"nStrips");
     
         //Connect Buffers
         colorLoc      = gl.getAttribLocation(shaderProgram.program, "color");
@@ -372,9 +415,9 @@
         gl.enableVertexAttribArray(normalLoc);
 
         //Buffer creation
-        meshVertexs = bunnyObj.vertexs; //triVertices;
-        meshIndexs = bunnyObj.faces; //triFaces;
-        meshNormals = bunnyObj.normals;
+        meshVertexs =cubeVertexPos //bunnyObj.vertexs; //triVertices;
+        meshIndexs = cubeTriangle//bunnyObj.faces; //triFaces;
+        meshNormals = cubeVertexNormal//bunnyObj.normals;
         vertexBuff= gl.createBuffer ();
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuff);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(meshVertexs),gl.STATIC_DRAW);
@@ -389,7 +432,7 @@
 
         //Matrices setup
         perspMat = glMatrix.mat4.create();
-        glMatrix.mat4.perspective(perspMat, 45, canvas.width/canvas.height, 1, 10);
+        glMatrix.mat4.perspective(perspMat, 45, canvas.width/canvas.height, 0.1, 30);
         modelMat = glMatrix.mat4.create();
         viewMat = glMatrix.mat4.create();
         glMatrix.mat4.fromTranslation(viewMat, glMatrix.vec3.fromValues(camaraPos[0], camaraPos[1], camaraPos[2]));
@@ -433,6 +476,7 @@
         gl.uniformMatrix4fv(modelLoc, false, modelMat);
         gl.uniform3fv(camPosLoc,glMatrix.vec3.fromValues(camaraPos[0],camaraPos[1],camaraPos[2]));
         gl.uniform1f(outlineWidthLoc, state.outlineWidth);
+        gl.uniform1i(nStripsLoc,state.nStrips );
 
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuff);
 
@@ -456,7 +500,8 @@
 
     $(window).ready(function() {
         var gui = new dat.GUI();
-        gui.add(state, 'outlineWidth', 0.1, 1.5);
+        gui.add(state, 'outlineWidth', 0.1, 0.95);
+        gui.add(state, 'nStrips',2,50).step(1);
     });
 
 </script>
