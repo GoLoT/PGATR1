@@ -10,6 +10,7 @@
     <script type="text/javascript" src="models.js"></script>
 
     <script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js" ></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.5/dat.gui.min.js" ></script>
     
     <script id="vs" type="x-shader/x-vertex">
         #version 300 es
@@ -46,7 +47,8 @@
         in vec3 vNormal;
 		in vec3 vPos;
 
-		uniform vec3 camPos;
+        uniform vec3 camPos;
+        uniform float outlineWidth;
 
          //Obj
         vec3 Ka;
@@ -146,7 +148,7 @@
 
 	        vec3 V = normalize(pos - camPos);
 
-	        if (dot(V,normalVector) < 0.6f && dot(V,normalVector) > -0.1f ) {
+	        if (dot(V,normalVector) < outlineWidth && dot(V,normalVector) > -0.1f ) {
 	            return vec3(0.0f);
 	        }
 
@@ -212,11 +214,16 @@
 <canvas id="glCanvas"></canvas>
 <script type="text/javascript"> 
 
+    var State = function() {
+        this.outlineWidth = 0.6;
+    };
+    var state = new State();
+
     //http://glmatrix.net/docs/module-mat4.html
     var canvas;
 
     var shaderProgram;
-    var projectionLoc, viewLoc, modelLoc, camPosLoc;
+    var projectionLoc, viewLoc, modelLoc, camPosLoc, outlineWidthLoc;
     var colorLoc, positionLoc,normalLoc;
 
     var perspMat, viewMat, modelMat;
@@ -354,6 +361,7 @@
         viewLoc = gl.getUniformLocation(shaderProgram.program, "view");
         modelLoc = gl.getUniformLocation(shaderProgram.program, "model");
         camPosLoc = gl.getUniformLocation(shaderProgram.program, "camPos");
+        outlineWidthLoc = gl.getUniformLocation(shaderProgram.program, "outlineWidthPos");
     
         //Connect Buffers
         colorLoc      = gl.getAttribLocation(shaderProgram.program, "color");
@@ -389,7 +397,7 @@
         gl.uniformMatrix4fv(projLoc, false, perspMat);
         gl.uniformMatrix4fv(viewLoc, false, viewMat);
         gl.uniform3fv(camPosLoc, glMatrix.vec3.fromValues(camaraPos[0], camaraPos[1], camaraPos[2]));
-
+        gl.uniform1f(outlineWidthLoc, State.outlineWidth);
 
         //Prepare render
         gl.enable(gl.DEPTH_TEST);
@@ -424,6 +432,7 @@
         gl.uniformMatrix4fv(viewLoc, false, viewMat);
         gl.uniformMatrix4fv(modelLoc, false, modelMat);
         gl.uniform3fv(camPosLoc,glMatrix.vec3.fromValues(camaraPos[0],camaraPos[1],camaraPos[2]));
+        gl.uniform1f(outlineWidthLoc, State.outlineWidth);
 
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuff);
 
@@ -444,6 +453,11 @@
 
     init();
     draw(0);
+
+    $(window).ready(function() {
+        var gui = new dat.GUI();
+        gui.add(state, 'outlineWidth', 0.1, 1.5);
+    });
 
 </script>
 </body>
