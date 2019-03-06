@@ -249,6 +249,8 @@
 
     <script id="tfvs" type="x-shader/x-vertex">
         #version 300 es
+        precision mediump float;
+
 
         in vec3 position;
         uniform mat4 model;
@@ -278,7 +280,7 @@
     var State = function() {
         this.outlineWidth = 0.6;
         this.nStrips = 4;
-        this.model = 'teapot';
+        this.model = 'cube';
         this.light1pos = [2,2,2];
         this.light1int = [153,153,153];//[0.6, 0.6, 0.6];
         this.light2dir = [0,-1,1];
