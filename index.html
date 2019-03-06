@@ -41,7 +41,6 @@
             //vNormal = normal;
         }
     </script>
-
     <script id="fs" type="x-shader/x-fragment">
         #version 300 es
         precision mediump float;
@@ -248,6 +247,29 @@
         }
     </script>
 
+    <script id="tfvs" type="x-shader/x-vertex">
+        #version 300 es
+
+        in vec3 position;
+        uniform mat4 model;
+
+        void main(void) 
+        {
+            gl_Position = model * vec4(position,1.);
+        }
+    </script>
+    <script id="tffs" type="x-shader/x-fragment">
+        #version 300 es
+        precision mediump float;
+
+        out vec4 outColor;
+
+        void main(void) 
+        {
+            outColor = vec4(0);
+        }
+    </script>
+
 </head>
 <body>
 <canvas id="glCanvas"></canvas>
@@ -269,7 +291,9 @@
     var canvas;
 
     var shaderProgram;
+    var tfShaderProgram;
     var projectionLoc, viewLoc, modelLoc, camPosLoc, outlineWidthLoc, nStripsLoc, light1posLoc, light1intLoc, light2dirLoc, light2intLoc;
+    var tfModelLoc, tfPositionLoc, transformFeedback;
     var colorLoc, positionLoc,normalLoc;
 
     var perspMat, viewMat, modelMat;
@@ -433,7 +457,17 @@
     }
 
 
-   var modelJson = {};
+    var modelJson = {};
+
+    var tfbuf = [0, 0];
+
+    function setupTFbuffers() {
+        
+        gl.bindBuffer(gl.ARRAY_BUFFER, tfbuf[0]);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(meshVertexs), gl.DYNAMIC_COPY);
+        gl.bindBuffer(gl.ARRAY_BUFFER, tfbuf[1]);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(meshVertexs), gl.DYNAMIC_COPY);
+    }
 
     //Init function
     function init()
@@ -441,6 +475,10 @@
         canvas = document.getElementById( "glCanvas" ); 
         canvas.width    = window.innerWidth;
         canvas.height   = window.innerHeight;    
+
+        meshVertexs = modelJson.vertexs;
+        meshIndexs = modelJson.faces;
+        meshNormals = modelJson.normals;
         
         //Context Inicialization
         try 
@@ -461,6 +499,20 @@
         window.addEventListener("keyup", keyupHandler, false);
 
         //Shader inicialization
+        tfShaderProgram = new ShaderManager( );
+        tfShaderProgram.createShader( document.getElementById( "tfvs" ).text.trim(), gl.VERTEX_SHADER );
+        tfShaderProgram.createShader( document.getElementById( "tffs" ).text.trim(), gl.FRAGMENT_SHADER );
+        tfShaderProgram.createProg( );
+        gl.transformFeedbackVaryings( tfShaderProgram.program, ["gl_Position"], gl.SEPARATE_ATTRIBS )
+        tfShaderProgram.linkProg( );
+        tfShaderProgram.useProg( );
+        tfModelLoc = gl.getUniformLocation(tfShaderProgram.program, "model");
+        tfPositionLoc = gl.getAttribLocation(tfShaderProgram.program, "position");
+        tfbuf = [gl.createBuffer(), gl.createBuffer()];
+        setupTFbuffers();
+        transformFeedback = gl.createTransformFeedback()
+        gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, transformFeedback)
+
         shaderProgram = new ShaderManager( );
         shaderProgram.createShader( document.getElementById( "vs" ).text.trim(), gl.VERTEX_SHADER );
         shaderProgram.createShader( document.getElementById( "fs" ).text.trim(), gl.FRAGMENT_SHADER );
@@ -489,10 +541,6 @@
         gl.enableVertexAttribArray(normalLoc);
 
         //Buffer creation
-        meshVertexs = modelJson.vertexs; //bunnyObj.vertexs; //triVertices;
-        meshIndexs = modelJson.faces;//bunnyObj.faces; //triFaces;
-        meshNormals = modelJson.normals;//bunnyObj.normals;
-
         vertexBuff= gl.createBuffer ();
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuff);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(meshVertexs),gl.STATIC_DRAW);
@@ -532,6 +580,36 @@
         let newFrame = new Date().getTime();
         currentDelta = newFrame-lastFrame;
         lastFrame = newFrame;
+        
+        gl.viewport(0.0, 0.0, canvas.width, canvas.height);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        //Transform feedback
+        let rotAngle = Math.sin(newFrame/1000);
+        let rotMat = glMatrix.mat4.create();
+        glMatrix.mat4.identity(rotMat);
+        glMatrix.mat4.rotate(rotMat,rotMat,rotAngle,glMatrix.vec3.fromValues(1,0,0));
+        tfShaderProgram.useProg( );
+        gl.disable(gl.DEPTH_TEST);
+        gl.enable(gl.RASTERIZER_DISCARD);
+        gl.uniformMatrix4fv(tfModelLoc, false, rotMat);
+        gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuff);
+        gl.vertexAttribPointer(tfPositionLoc, 3, gl.FLOAT, gl.FALSE, 0, 0);
+        gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, tfbuf[0]);
+        gl.beginTransformFeedback(gl.TRIANGLES);
+        gl.drawArrays(gl.TRIANGLES, 0, meshVertexs.length/3);
+        gl.endTransformFeedback(gl.TRIANGLES);
+        glMatrix.mat4.transpose(rotMat, rotMat);
+        gl.uniformMatrix4fv(tfModelLoc, false, rotMat);
+        gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuff);
+        gl.vertexAttribPointer(tfPositionLoc, 3, gl.FLOAT, gl.FALSE, 0, 0);
+        gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, tfbuf[1]);
+        gl.beginTransformFeedback(gl.TRIANGLES);
+        gl.drawArrays(gl.TRIANGLES, 0, meshVertexs.length/3);
+        gl.endTransformFeedback(gl.TRIANGLES);
+        gl.disable(gl.RASTERIZER_DISCARD);
+        gl.enable(gl.DEPTH_TEST);
+        shaderProgram.useProg( );
 
         updateCameraPos();
 
@@ -547,10 +625,6 @@
         //glMatrix.mat4.fromYRotation(modelMat, rotX);
        // glMatrix.mat4.rotate(modelMat, modelMat, rotY, glMatrix.vec3.fromValues(1, 0, 0));
   
-        //Rendering
-        gl.viewport(0.0, 0.0, canvas.width, canvas.height);
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
         gl.uniformMatrix4fv(viewLoc, false, viewMat);
         gl.uniformMatrix4fv(modelLoc, false, modelMat);
         gl.uniform3fv(camPosLoc,glMatrix.vec3.fromValues(camaraPos[0],camaraPos[1],camaraPos[2]));
@@ -561,6 +635,7 @@
         gl.uniform3fv(light2dirLoc,glMatrix.vec3.fromValues(state.light2dir[0],state.light2dir[1],state.light2dir[2]));
         gl.uniform3fv(light2intLoc,glMatrix.vec3.fromValues(state.light2int[0]/255,state.light2int[1]/255,state.light2int[2]/255));
 
+        //gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuff);
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuff);
 
         //https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/vertexAttribPointer
@@ -609,6 +684,7 @@
                         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(meshNormals),gl.STATIC_DRAW);
                         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuff);
                         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(meshIndexs), gl.STATIC_DRAW);
+                        setupTFbuffers();
                     },
                     error: function(r, text, error) {
                         alert("Error " + error + " al cargar el modelo.\n" + text);
