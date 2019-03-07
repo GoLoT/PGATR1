@@ -30,14 +30,26 @@
         out vec3 vNormal;
         out vec3 vPos;
 
+        uniform float phaseX;
+        uniform float phaseY;
+        uniform float distance;
+        uniform int numInstancesX;
+        uniform int numInstancesY;
+
         void main(void) 
         {
-            mat4 modelView = view * model;
-            vPos = (model * vec4(position,1.)).xyz;
+            float y = floor(float(gl_InstanceID)/float(numInstancesX));
+            float x = float(gl_InstanceID) - y*float(numInstancesX);
+
+            mat4 modelDisplaced = model;
+            modelDisplaced[3][0] = modelDisplaced[3][0] + phaseX + distance*x;
+            modelDisplaced[3][2] = modelDisplaced[3][2] - phaseY + distance*y;
+            mat4 modelView = view * modelDisplaced;
+            vPos = (modelDisplaced * vec4(position,1.)).xyz;
             gl_Position = projection * modelView*vec4(position, 1.);
 
             vColor = color;
-            vNormal = mat3(transpose(inverse(model))) * normal;
+            vNormal = mat3(transpose(inverse(modelDisplaced))) * normal;
             //vNormal = normal;
         }
     </script>
@@ -284,17 +296,17 @@
     var State = function() {
         this.outlineWidth = 0.6;
         this.nStrips = 10;
-        this.model = 'cube';
-        this.light1pos = [2,2,2];
-        this.light1int = [153,153,153];//[0.6, 0.6, 0.6];
+        this.model = 'sphere';
+        this.light1pos = [6,2,2];
+        this.light1int = [0, 255, 0];//[153,153,153];//[0.6, 0.6, 0.6];
         this.light2dir = [0,-1,1];
         this.light2int = [153,153,153];//[0.6, 0.6, 0.6];
         this.keyboardSens = 1;
-        this.instancePhaseX = 0;
-        this.instancePhaseY = 0;
-        this.instanceDistance = 10;
-        this.instanceX = 1;
-        this.instanceY = 1;
+        this.instancePhaseX = 0.5;
+        this.instancePhaseY = 1;
+        this.instanceDistance = 2;
+        this.instanceX = 50;
+        this.instanceY = 50;
     };
     var state = new State();
 
@@ -306,6 +318,9 @@
     var projectionLoc, viewLoc, modelLoc, camPosLoc, outlineWidthLoc, nStripsLoc, light1posLoc, light1intLoc, light2dirLoc, light2intLoc;
     var tfModelLoc, tfPositionLoc, transformFeedback;
     var colorLoc, positionLoc,normalLoc, tfNormalLoc;
+
+
+    var phaseXLoc, phaseYLoc, instDistanceLoc, numInstXLoc, numInstYLoc;
 
     var perspMat, viewMat, modelMat, tfNormalMat;
 
@@ -557,6 +572,13 @@
         colorLoc      = gl.getAttribLocation(shaderProgram.program, "color");
         positionLoc   = gl.getAttribLocation(shaderProgram.program, "position");
         normalLoc     = gl.getAttribLocation(shaderProgram.program, "normal");
+
+        phaseXLoc     = gl.getUniformLocation(shaderProgram.program, "phaseX");
+        phaseYLoc     = gl.getUniformLocation(shaderProgram.program, "phaseY");
+        instDistanceLoc     = gl.getUniformLocation(shaderProgram.program, "distance");
+        numInstXLoc     = gl.getUniformLocation(shaderProgram.program, "numInstancesX");
+        numInstYLoc     = gl.getUniformLocation(shaderProgram.program, "numInstancesY");
+
         gl.enableVertexAttribArray(colorLoc);
         gl.enableVertexAttribArray(positionLoc);
         gl.enableVertexAttribArray(normalLoc);
@@ -666,6 +688,11 @@
         gl.uniform3fv(camPosLoc,glMatrix.vec3.fromValues(camaraPos[0],camaraPos[1],camaraPos[2]));
         gl.uniform1f(outlineWidthLoc, state.outlineWidth);
         gl.uniform1i(nStripsLoc,state.nStrips );
+        gl.uniform1i(numInstXLoc,state.instanceX );
+        gl.uniform1i(numInstYLoc,state.instanceY );
+        gl.uniform1f(instDistanceLoc, state.instanceDistance);
+        gl.uniform1f(phaseXLoc, 0);
+        gl.uniform1f(phaseYLoc, 0);
         gl.uniform3fv(light1posLoc,glMatrix.vec3.fromValues(state.light1pos[0],state.light1pos[1],state.light1pos[2]));
         gl.uniform3fv(light1intLoc,glMatrix.vec3.fromValues(state.light1int[0]/255,state.light1int[1]/255,state.light1int[2]/255));
         gl.uniform3fv(light2dirLoc,glMatrix.vec3.fromValues(state.light2dir[0],state.light2dir[1],state.light2dir[2]));
@@ -685,7 +712,8 @@
 
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuff);
         
-        gl.drawElements(gl.TRIANGLES, meshIndexs.length , gl.UNSIGNED_SHORT, 0);
+        //gl.drawElements(gl.TRIANGLES, meshIndexs.length , gl.UNSIGNED_SHORT, 0);
+        gl.drawElementsInstanced(gl.TRIANGLES, meshIndexs.length , gl.UNSIGNED_SHORT, 0, state.instanceX*state.instanceY);
 
         gl.bindBuffer(gl.ARRAY_BUFFER, tfbuf[1]);
         gl.vertexAttribPointer(positionLoc, 3, gl.FLOAT, false, meshElementSize, 0 ) ;
@@ -693,7 +721,11 @@
         gl.bindBuffer(gl.ARRAY_BUFFER, tfbuf[3]);
         gl.vertexAttribPointer(normalLoc,3,gl.FLOAT,false,meshElementSize,0);
 
-        gl.drawElements(gl.TRIANGLES, meshIndexs.length , gl.UNSIGNED_SHORT, 0);
+        gl.uniform1f(phaseXLoc, state.instancePhaseX);
+        gl.uniform1f(phaseYLoc, state.instancePhaseY);
+
+        //gl.drawElements(gl.TRIANGLES, meshIndexs.length , gl.UNSIGNED_SHORT, 0);
+        gl.drawElementsInstanced(gl.TRIANGLES, meshIndexs.length , gl.UNSIGNED_SHORT, 0, state.instanceX*state.instanceY);
 
         //Hyper hack para que no falle el transform feedback. Unbind buffer a atributo
         gl.bindBuffer(gl.ARRAY_BUFFER, normalBuff);
@@ -760,11 +792,11 @@
         gui.addColor(state, 'light2int').name("Light 2 color");
 
         const instancing = gui.addFolder("Instancing");
-        instancing.add(state, 'instancePhaseX', 0, 100).step(0.1);
-        instancing.add(state, 'instancePhaseY', 0, 100).step(0.1);
-        instancing.add(state, 'instanceDistance', 0, 100).step(0.1);
-        instancing.add(state, 'instanceX', 1, 100).step(1);
-        instancing.add(state, 'instanceX', 1, 100).step(1);
+        instancing.add(state, 'instancePhaseX', 0, 10).step(0.01);
+        instancing.add(state, 'instancePhaseY', 0, 10).step(0.01);
+        instancing.add(state, 'instanceDistance', 0, 10).step(0.01);
+        instancing.add(state, 'instanceX', 1, 100).step(1).name("Num instances X");
+        instancing.add(state, 'instanceY', 1, 100).step(1).name("Num instances Y");
 
     }
 
