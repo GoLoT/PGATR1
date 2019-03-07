@@ -254,21 +254,23 @@
 
         in vec3 position;
         uniform mat4 model;
+        uniform mat4 normalMat;
+        out vec3 pos;
+        out vec3 normal;
 
         void main(void)
         {
-            gl_Position = model * vec4(position,1.);
+            pos = (model * vec4(position,1.)).xyz;
         }
     </script>
     <script id="tffs" type="x-shader/x-fragment">
         #version 300 es
         precision mediump float;
 
-        out vec4 outColor;
 
         void main(void)
         {
-            outColor = vec4(0);
+            
         }
     </script>
 
@@ -298,7 +300,7 @@
     var tfModelLoc, tfPositionLoc, transformFeedback;
     var colorLoc, positionLoc,normalLoc;
 
-    var perspMat, viewMat, modelMat;
+    var perspMat, viewMat, modelMat, tfNormalMat;
 
     var meshVertexs;
     var meshColors;
@@ -471,6 +473,10 @@
         gl.bufferData(gl.ARRAY_BUFFER, meshVertexs.length*4, gl.DYNAMIC_COPY);
         gl.bindBuffer(gl.ARRAY_BUFFER, tfbuf[1]);
         gl.bufferData(gl.ARRAY_BUFFER, meshVertexs.length*4, gl.DYNAMIC_COPY);
+        gl.bindBuffer(gl.ARRAY_BUFFER, tfbuf[2]);
+        gl.bufferData(gl.ARRAY_BUFFER, meshNormals.length*4, gl.DYNAMIC_COPY);
+        gl.bindBuffer(gl.ARRAY_BUFFER, tfbuf[3]);
+        gl.bufferData(gl.ARRAY_BUFFER, meshNormals.length*4, gl.DYNAMIC_COPY);
     }
 
     //Init function
@@ -508,13 +514,14 @@
         tfShaderProgram.createShader( document.getElementById( "tfvs" ).text.trim(), gl.VERTEX_SHADER );
         tfShaderProgram.createShader( document.getElementById( "tffs" ).text.trim(), gl.FRAGMENT_SHADER );
         tfShaderProgram.createProg();
-        gl.transformFeedbackVaryings( tfShaderProgram.program, ["gl_Position"], gl.SEPARATE_ATTRIBS )
+        gl.transformFeedbackVaryings( tfShaderProgram.program, ["pos", "normal"], gl.SEPARATE_ATTRIBS );
         tfShaderProgram.linkProg();
         tfShaderProgram.useProg();
         tfModelLoc = gl.getUniformLocation(tfShaderProgram.program, "model");
+        tfNormalMat = gl.getUniformLocation(tfShaderProgram.program, "normalMat");
         tfPositionLoc = gl.getAttribLocation(tfShaderProgram.program, "position");
         gl.enableVertexAttribArray(tfPositionLoc);
-        tfbuf = [gl.createBuffer(), gl.createBuffer()];
+        tfbuf = [gl.createBuffer(), gl.createBuffer(), gl.createBuffer(), gl.createBuffer()];
         setupTFbuffers();
         transformFeedback = gl.createTransformFeedback();
         gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, transformFeedback);
@@ -598,25 +605,36 @@
         let rotAngle = Math.sin(newFrame/1000);
         let rotMat = glMatrix.mat4.create();
         glMatrix.mat4.identity(rotMat);
-        glMatrix.mat4.rotate(rotMat,rotMat,rotAngle,glMatrix.vec3.fromValues(1,0,0));
-        tfShaderProgram.useProg( );
+        glMatrix.mat4.rotate(rotMat,rotMat,rotAngle,glMatrix.vec3.fromValues(1,1,0));
+        let rotNormal = glMatrix.mat4.create();
+        glMatrix.mat4.invert(rotNormal, rotMat);
+        glMatrix.mat4.transpose(rotNormal, rotNormal);
+        tfShaderProgram.useProg();
         gl.disable(gl.DEPTH_TEST);
         gl.enable(gl.RASTERIZER_DISCARD);
         gl.uniformMatrix4fv(tfModelLoc, false, rotMat);
+        gl.uniformMatrix4fv(tfNormalMat, false, rotNormal);
         gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, tfbuf[0]);
+        gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 1, tfbuf[2]);
         gl.beginTransformFeedback(gl.POINTS);
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuff);
         gl.vertexAttribPointer(tfPositionLoc, 3, gl.FLOAT, gl.FALSE, 0, 0);
-        gl.drawArrays(gl.POINTS, 0, meshVertexs.length);
+        gl.drawArrays(gl.POINTS, 0, meshVertexs.length/3);
         gl.endTransformFeedback(gl.POINTS);
         glMatrix.mat4.transpose(rotMat, rotMat);
+        glMatrix.mat4.invert(rotNormal, rotMat);
+        glMatrix.mat4.transpose(rotNormal, rotNormal);
         gl.uniformMatrix4fv(tfModelLoc, false, rotMat);
+        gl.uniformMatrix4fv(tfNormalMat, false, rotNormal);
         gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, tfbuf[1]);
+        gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 1, tfbuf[3]);
         gl.beginTransformFeedback(gl.POINTS);
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuff);
         gl.vertexAttribPointer(tfPositionLoc, 3, gl.FLOAT, gl.FALSE, 0, 0);
-        gl.drawArrays(gl.POINTS, 0, meshVertexs.length);
+        gl.drawArrays(gl.POINTS, 0, meshVertexs.length/3);
         gl.endTransformFeedback(gl.POINTS);
+        gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, null);
+        gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 1, null);
         gl.disable(gl.RASTERIZER_DISCARD);
         gl.enable(gl.DEPTH_TEST);
         shaderProgram.useProg();
@@ -653,7 +671,9 @@
         gl.bindBuffer(gl.ARRAY_BUFFER, tfbuf[0]);
         gl.vertexAttribPointer(positionLoc, 3, gl.FLOAT, false, meshElementSize, 0 ) ;
 
-        gl.bindBuffer(gl.ARRAY_BUFFER,normalBuff);
+        /*gl.bindBuffer(gl.ARRAY_BUFFER,normalBuff);
+        gl.vertexAttribPointer(normalLoc,3,gl.FLOAT,false,meshElementSize,0);*/
+        gl.bindBuffer(gl.ARRAY_BUFFER, tfbuf[2]);
         gl.vertexAttribPointer(normalLoc,3,gl.FLOAT,false,meshElementSize,0);
 
         gl.bindBuffer(gl.ARRAY_BUFFER,colorBuff);
@@ -661,6 +681,14 @@
 
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuff);
         
+        gl.drawElements(gl.TRIANGLES, meshIndexs.length , gl.UNSIGNED_SHORT, 0);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, tfbuf[1]);
+        gl.vertexAttribPointer(positionLoc, 3, gl.FLOAT, false, meshElementSize, 0 ) ;
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, tfbuf[3]);
+        gl.vertexAttribPointer(normalLoc,3,gl.FLOAT,false,meshElementSize,0);
+
         gl.drawElements(gl.TRIANGLES, meshIndexs.length , gl.UNSIGNED_SHORT, 0);
         
         gl.flush();
