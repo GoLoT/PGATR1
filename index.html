@@ -468,9 +468,9 @@
     function setupTFbuffers() {
 
         gl.bindBuffer(gl.ARRAY_BUFFER, tfbuf[0]);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(meshVertexs), gl.DYNAMIC_COPY);
+        gl.bufferData(gl.ARRAY_BUFFER, meshVertexs.length*4, gl.DYNAMIC_COPY);
         gl.bindBuffer(gl.ARRAY_BUFFER, tfbuf[1]);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(meshVertexs), gl.DYNAMIC_COPY);
+        gl.bufferData(gl.ARRAY_BUFFER, meshVertexs.length*4, gl.DYNAMIC_COPY);
     }
 
     //Init function
@@ -603,23 +603,23 @@
         gl.disable(gl.DEPTH_TEST);
         gl.enable(gl.RASTERIZER_DISCARD);
         gl.uniformMatrix4fv(tfModelLoc, false, rotMat);
+        gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, tfbuf[0]);
+        gl.beginTransformFeedback(gl.POINTS);
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuff);
         gl.vertexAttribPointer(tfPositionLoc, 3, gl.FLOAT, gl.FALSE, 0, 0);
-        gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, tfbuf[0]);
-        gl.beginTransformFeedback(gl.TRIANGLES);
-        gl.drawArrays(gl.TRIANGLES, 0, meshVertexs.length/3);
-        gl.endTransformFeedback(gl.TRIANGLES);
+        gl.drawArrays(gl.POINTS, 0, meshVertexs.length);
+        gl.endTransformFeedback(gl.POINTS);
         glMatrix.mat4.transpose(rotMat, rotMat);
         gl.uniformMatrix4fv(tfModelLoc, false, rotMat);
+        gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, tfbuf[1]);
+        gl.beginTransformFeedback(gl.POINTS);
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuff);
         gl.vertexAttribPointer(tfPositionLoc, 3, gl.FLOAT, gl.FALSE, 0, 0);
-        gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, tfbuf[1]);
-        gl.beginTransformFeedback(gl.TRIANGLES);
-        gl.drawArrays(gl.TRIANGLES, 0, meshVertexs.length/3);
-        gl.endTransformFeedback(gl.TRIANGLES);
+        gl.drawArrays(gl.POINTS, 0, meshVertexs.length);
+        gl.endTransformFeedback(gl.POINTS);
         gl.disable(gl.RASTERIZER_DISCARD);
         gl.enable(gl.DEPTH_TEST);
-        shaderProgram.useProg( );
+        shaderProgram.useProg();
 
         updateCameraPos();
 
@@ -672,7 +672,7 @@
         gui.add(state, 'outlineWidth', 0.1, 0.95);
         gui.add(state, 'nStrips',2,50).step(1);
         gui.add(state, 'keyboardSens',0.5,5).step(0.1);
-        let modelSelector = gui.add(state, 'model', ['bunny', 'cube', 'sphere', 'teapot']);
+        let modelSelector = gui.add(state, 'model', ['bunny', 'cube', 'sphere', 'teapot', 'badcube']);
         modelSelector.onFinishChange(function(value) {
             if(value == "cube") {
                 meshVertexs = cubeVertexPos;
@@ -684,6 +684,7 @@
                 gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(meshNormals),gl.STATIC_DRAW);
                 gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuff);
                 gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(meshIndexs), gl.STATIC_DRAW);
+                setupTFbuffers();
             } else {
                 $.ajax({
                     url: value + ".json",
@@ -717,7 +718,7 @@
         light1positions.add(state.light1pos, 2).name("z");
         gui.addColor(state, 'light1int').name("Light 1 color");
         const light2positions = gui.addFolder("Light 2 Dir");
-        light2positions.add(state.light2dir, 0).name("x");
+        light2positions.add(state.light2dir, 0).name("x").step(0.1);
         light2positions.add(state.light2dir, 1).name("y");
         light2positions.add(state.light2dir, 2).name("z");
         gui.addColor(state, 'light2int').name("Light 2 color");
