@@ -130,7 +130,9 @@
             vec3 c = vec3(0.0);
 	        c+= Ke;
 
-	       vec3 V = normalize(camPos - pos);
+	       vec3 V = camPos - pos;
+	       float distance = length(V);
+	       V = normalize(V);
 
 	       if (dot(V,normalVector) < outlineWidth && dot(V,normalVector) > -0.1f ) {
 	            return vec3(0.0f);
@@ -174,7 +176,8 @@
 		        c += resi;
 	        }
 
-	        float f = exp(-pow(df*pos.z,2.0f));
+
+	        float f = exp(-pow(df*distance,2.0f));
 	        //c = f*c + (1.0f-f) * cfog;
 	        return  c;
         }
@@ -299,8 +302,8 @@
         this.model = 'sphere';
         this.light1pos = [6,2,2];
         this.light1int = [0, 255, 0];//[153,153,153];//[0.6, 0.6, 0.6];
-        this.light2dir = [0,-1,1];
-        this.light2int = [153,153,153];//[0.6, 0.6, 0.6];
+        this.light2dir = [12,18,4];
+        this.light2int = [150,70,80];//[0.6, 0.6, 0.6];
         this.keyboardSens = 1;
         this.instancePhaseX = 0.5;
         this.instancePhaseY = 1;
@@ -602,7 +605,7 @@
 
         //Matrices setup
         perspMat = glMatrix.mat4.create();
-        glMatrix.mat4.perspective(perspMat, 45, canvas.width/canvas.height, 0.1, 30);
+        glMatrix.mat4.perspective(perspMat, 45, canvas.width/canvas.height, 0.1, 100);
         modelMat = glMatrix.mat4.create();
         viewMat = glMatrix.mat4.create();
         glMatrix.mat4.fromTranslation(viewMat, glMatrix.vec3.fromValues(-camaraPos[0], -camaraPos[1], -camaraPos[2]));
